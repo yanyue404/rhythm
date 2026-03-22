@@ -14,7 +14,7 @@ Rhythm V1 目标：在 macOS 上提供稳定可用的休息提醒能力，帮助
 
 ## 2. 用户流
 
-1. 用户在菜单栏设置专注 25 分钟，休息 5 分钟
+1. 用户在菜单栏设置专注间隔（10-120 分钟）和休息时长（30 秒-10 分钟常用档位）
 2. 应用进入专注计时
 3. 到点后弹出全屏半透明休息遮罩
 4. 用户选择：
@@ -60,7 +60,7 @@ Rhythm V1 目标：在 macOS 上提供稳定可用的休息提醒能力，帮助
 `UserDefaults`
 
 - `focusMinutes: Int`
-- `restMinutes: Int`
+- `restSeconds: Int`（兼容迁移 `restMinutes` 历史字段）
 
 ### 4.2 休息记录 `RestSession`
 

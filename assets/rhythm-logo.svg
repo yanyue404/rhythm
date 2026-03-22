@@ -1,11 +1,17 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1024" height="1024" rx="220" fill="#101722"/>
-  <circle cx="512" cy="512" r="286" stroke="#E7F0FF" stroke-opacity="0.95" stroke-width="54"/>
+  <rect width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="268" stroke="#FFFFFF" stroke-opacity="0.96" stroke-width="56"/>
   <path
-    d="M236 512H404L478 362L552 668L626 438L706 512H788"
-    stroke="#E7F0FF"
-    stroke-width="58"
+    d="M282 512H430L504 380L576 644L650 438L724 512H742"
+    stroke="#FFFFFF"
+    stroke-width="56"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
+  <defs>
+    <linearGradient id="bg" x1="164" y1="132" x2="864" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#121922"/>
+      <stop offset="1" stop-color="#223041"/>
+    </linearGradient>
+  </defs>
 </svg>

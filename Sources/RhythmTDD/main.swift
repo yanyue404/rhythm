@@ -23,13 +23,34 @@ struct RhythmTDDRunner {
             return callbackCount == 1
         }
 
-        failures += run("settings normalization avoids recursion") {
+        failures += run("settings normalization keeps configured range and rest presets") {
             let isolated = makeIsolatedDefaults()
             defer { isolated.defaults.removePersistentDomain(forName: isolated.suiteName) }
 
             let store = SettingsStore(userDefaults: isolated.defaults)
             store.focusMinutes = 0
-            return store.focusMinutes == 1
+            guard store.focusMinutes == 10 else { return false }
+
+            store.restSeconds = 1
+            guard store.restSeconds == 30 else { return false }
+
+            store.restSeconds = 250
+            guard store.restSeconds == 240 else { return false }
+
+            store.focusMinutes = 119
+            guard store.focusMinutes == 120 else { return false }
+
+            store.restSeconds = 589
+            return store.restSeconds == 600
+        }
+
+        failures += run("legacy rest minutes migrates to rest seconds") {
+            let isolated = makeIsolatedDefaults()
+            defer { isolated.defaults.removePersistentDomain(forName: isolated.suiteName) }
+
+            isolated.defaults.set(3, forKey: SettingsStore.legacyRestMinutesKey)
+            let store = SettingsStore(userDefaults: isolated.defaults)
+            return store.restSeconds == 180
         }
 
         failures += run("timer skip records rest session") {
