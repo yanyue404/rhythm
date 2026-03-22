@@ -10,8 +10,7 @@ final class OverlayManager: ObservableObject {
     var onSkipped: (() -> Void)?
     var onCompleted: (() -> Void)?
 
-    private var overlayWindows: [OverlayWindow] = []
-    private var focusWindow: OverlayWindow?
+    private var overlayWindow: OverlayWindow?
     private var keyMonitor: Any?
     private var countdownTimer: Timer?
     private var focusEnforcerTimer: Timer?
@@ -22,73 +21,45 @@ final class OverlayManager: ObservableObject {
 
         remainingSeconds = max(1, restSeconds)
         restEndAt = Date().addingTimeInterval(TimeInterval(restSeconds))
-        isShowing = true
-
-        var targetScreens = NSScreen.screens
-        if targetScreens.isEmpty, let main = NSScreen.main {
-            targetScreens = [main]
-        }
-        guard !targetScreens.isEmpty else {
-            // Defensive fallback: do not enter resting mode without a visible overlay.
-            isShowing = false
+        guard let screen = activeScreen() ?? NSScreen.main ?? NSScreen.screens.first else {
             restEndAt = nil
+            remainingSeconds = 0
+            isShowing = false
             return
         }
-        let mouseLocation = NSEvent.mouseLocation
-        let preferredScreen = targetScreens.first { NSMouseInRect(mouseLocation, $0.frame, false) }
-            ?? NSScreen.main
-            ?? targetScreens.first
+        isShowing = true
 
         let contentView = OverlayView(
             model: self,
             skipAction: { [weak self] in self?.skipByEscape() }
         )
 
-        for screen in targetScreens {
-            let window = OverlayWindow(
-                contentRect: screen.frame,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.level = .screenSaver
-            window.collectionBehavior = [
-                .canJoinAllSpaces,
-                .fullScreenAuxiliary,
-                .stationary,
-                .moveToActiveSpace
-            ]
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.hasShadow = false
-            window.ignoresMouseEvents = false
-            window.isReleasedWhenClosed = false
-            window.hidesOnDeactivate = false
+        let window = OverlayWindow(
+            contentRect: screen.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .screenSaver
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .moveToActiveSpace]
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = false
+        window.isReleasedWhenClosed = false
+        window.hidesOnDeactivate = false
 
-            let hostingView = EscapeAwareHostingView(rootView: contentView)
-            hostingView.onEscape = { [weak self] in
-                self?.skipByEscape()
-            }
-            window.contentView = hostingView
-            window.onEscape = { [weak self] in
-                self?.skipByEscape()
-            }
-
-            overlayWindows.append(window)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-
-            if screen == preferredScreen {
-                focusWindow = window
-                window.initialFirstResponder = hostingView
-            }
+        let hostingView = EscapeAwareHostingView(rootView: contentView)
+        hostingView.onEscape = { [weak self] in
+            self?.skipByEscape()
+        }
+        window.contentView = hostingView
+        window.onEscape = { [weak self] in
+            self?.skipByEscape()
         }
 
-        if focusWindow == nil {
-            focusWindow = overlayWindows.first
-        }
-
-        activateAndFocus()
+        overlayWindow = window
+        activateAndFocus(firstResponder: hostingView)
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -121,9 +92,8 @@ final class OverlayManager: ObservableObject {
         }
         keyMonitor = nil
 
-        overlayWindows.forEach { $0.orderOut(nil) }
-        overlayWindows.removeAll()
-        focusWindow = nil
+        overlayWindow?.orderOut(nil)
+        overlayWindow = nil
 
         isShowing = false
         remainingSeconds = 0
@@ -153,28 +123,35 @@ final class OverlayManager: ObservableObject {
                 guard
                     let self,
                     self.isShowing,
-                    let window = self.focusWindow
+                    let window = self.overlayWindow
                 else { return }
 
                 if !NSApp.isActive || !window.isKeyWindow {
-                    self.activateAndFocus()
+                    self.activateAndFocus(firstResponder: window.contentView)
                 }
             }
         }
         RunLoop.main.add(focusEnforcerTimer!, forMode: .common)
     }
 
-    private func activateAndFocus() {
-        guard let focusWindow else { return }
+    private func activateAndFocus(firstResponder: NSView?) {
+        guard let overlayWindow else { return }
         NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
         NSApp.activate(ignoringOtherApps: true)
-        overlayWindows.forEach {
-            $0.level = .screenSaver
-            $0.orderFrontRegardless()
+        overlayWindow.level = .screenSaver
+        overlayWindow.makeKeyAndOrderFront(nil)
+        overlayWindow.orderFrontRegardless()
+        overlayWindow.makeMain()
+        if let firstResponder {
+            overlayWindow.makeFirstResponder(firstResponder)
         }
-        focusWindow.makeKeyAndOrderFront(nil)
-        focusWindow.makeMain()
-        focusWindow.makeFirstResponder(focusWindow.contentView)
+    }
+
+    private func activeScreen() -> NSScreen? {
+        let mouseLocation = NSEvent.mouseLocation
+        return NSScreen.screens.first { screen in
+            NSMouseInRect(mouseLocation, screen.frame, false)
+        }
     }
 }
 
