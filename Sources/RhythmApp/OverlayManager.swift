@@ -10,54 +10,78 @@ final class OverlayManager: ObservableObject {
     var onSkipped: (() -> Void)?
     var onCompleted: (() -> Void)?
 
-    private var overlayWindow: NSWindow?
+    private var overlayWindows: [OverlayWindow] = []
+    private var focusWindow: OverlayWindow?
     private var keyMonitor: Any?
     private var countdownTimer: Timer?
     private var focusEnforcerTimer: Timer?
     private var restEndAt: Date?
+    private var originalActivationPolicy: NSApplication.ActivationPolicy?
 
     func present(restSeconds: Int) {
         dismiss()
 
-        let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         remainingSeconds = max(1, restSeconds)
         restEndAt = Date().addingTimeInterval(TimeInterval(restSeconds))
+        isShowing = true
+
+        let screens = NSScreen.screens
+        let targetScreens = screens.isEmpty ? [NSScreen.main].compactMap { $0 } : screens
+        let mouseLocation = NSEvent.mouseLocation
+        let preferredScreen = targetScreens.first { NSMouseInRect(mouseLocation, $0.frame, false) }
+            ?? NSScreen.main
+            ?? targetScreens.first
 
         let contentView = OverlayView(
             model: self,
             skipAction: { [weak self] in self?.skipByEscape() }
         )
 
-        let window = OverlayWindow(
-            contentRect: screenFrame,
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.level = .screenSaver
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .stationary]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = false
-        window.ignoresMouseEvents = false
-        let hostingView = EscapeAwareHostingView(rootView: contentView)
-        hostingView.onEscape = { [weak self] in
-            self?.skipByEscape()
-        }
-        window.contentView = hostingView
-        window.onEscape = { [weak self] in
-            self?.skipByEscape()
+        for screen in targetScreens {
+            let window = OverlayWindow(
+                contentRect: screen.frame,
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            window.level = .screenSaver
+            window.collectionBehavior = [
+                .canJoinAllSpaces,
+                .fullScreenAuxiliary,
+                .transient,
+                .stationary,
+                .moveToActiveSpace
+            ]
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.hasShadow = false
+            window.ignoresMouseEvents = false
+
+            let hostingView = EscapeAwareHostingView(rootView: contentView)
+            hostingView.onEscape = { [weak self] in
+                self?.skipByEscape()
+            }
+            window.contentView = hostingView
+            window.onEscape = { [weak self] in
+                self?.skipByEscape()
+            }
+
+            overlayWindows.append(window)
+            window.orderFrontRegardless()
+
+            if screen == preferredScreen {
+                focusWindow = window
+                window.initialFirstResponder = hostingView
+            }
         }
 
-        overlayWindow = window
-        isShowing = true
+        if focusWindow == nil {
+            focusWindow = overlayWindows.first
+        }
 
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
-        window.makeMain()
-        window.makeFirstResponder(hostingView)
+        originalActivationPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.regular)
+        activateAndFocus()
 
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
@@ -90,8 +114,15 @@ final class OverlayManager: ObservableObject {
         }
         keyMonitor = nil
 
-        overlayWindow?.orderOut(nil)
-        overlayWindow = nil
+        overlayWindows.forEach { $0.orderOut(nil) }
+        overlayWindows.removeAll()
+        focusWindow = nil
+
+        if let originalActivationPolicy {
+            NSApp.setActivationPolicy(originalActivationPolicy)
+        }
+        originalActivationPolicy = nil
+
         isShowing = false
         remainingSeconds = 0
     }
@@ -120,20 +151,25 @@ final class OverlayManager: ObservableObject {
                 guard
                     let self,
                     self.isShowing,
-                    let window = self.overlayWindow
+                    let window = self.focusWindow
                 else { return }
 
                 if !NSApp.isActive || !window.isKeyWindow {
-                    NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
-                    NSApp.activate(ignoringOtherApps: true)
-                    window.makeKeyAndOrderFront(nil)
-                    window.orderFrontRegardless()
-                    window.makeMain()
-                    window.makeFirstResponder(window.contentView)
+                    self.activateAndFocus()
                 }
             }
         }
         RunLoop.main.add(focusEnforcerTimer!, forMode: .common)
+    }
+
+    private func activateAndFocus() {
+        guard let focusWindow else { return }
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps, .activateAllWindows])
+        NSApp.activate(ignoringOtherApps: true)
+        overlayWindows.forEach { $0.orderFrontRegardless() }
+        focusWindow.makeKeyAndOrderFront(nil)
+        focusWindow.makeMain()
+        focusWindow.makeFirstResponder(focusWindow.contentView)
     }
 }
 
