@@ -53,7 +53,7 @@ struct RhythmMenuLogo: View {
 }
 
 private enum RhythmMenuBarTemplateIcon {
-    static let image: NSImage = {
+    @MainActor static let image: NSImage = {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
             drawTemplateIcon(in: rect)

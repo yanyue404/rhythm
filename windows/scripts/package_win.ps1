@@ -10,14 +10,14 @@ $RepoRoot = Split-Path -Parent $ProjectDir
 $CargoToml = Join-Path $ProjectDir "Cargo.toml"
 
 if (!(Test-Path $ProjectDir)) {
-    throw "windows 项目目录不存在: $ProjectDir"
+    throw "windows project directory not found: $ProjectDir"
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $toml = Get-Content $CargoToml -Raw
     $match = [regex]::Match($toml, 'version\s*=\s*"([^"]+)"')
     if (!$match.Success) {
-        throw "无法从 Cargo.toml 解析版本号"
+        throw "Failed to parse version from Cargo.toml"
     }
     $Version = $match.Groups[1].Value
 }
@@ -34,7 +34,7 @@ if (-not $SkipBuild) {
     try {
         $cargoCmd = Get-Command cargo -ErrorAction SilentlyContinue
         if ($null -eq $cargoCmd) {
-            throw "未找到 cargo 命令，请先安装 Rust 并确保 cargo 在 PATH 中"
+            throw "cargo not found, please install Rust and ensure cargo is in PATH"
         }
         & $cargoCmd.Source build --release
     }
@@ -44,7 +44,7 @@ if (-not $SkipBuild) {
 }
 
 if (!(Test-Path $ExePath)) {
-    throw "未找到 release 可执行文件: $ExePath"
+    throw "Release executable not found: $ExePath"
 }
 
 if (Test-Path $OutDir) {
@@ -61,6 +61,6 @@ if (Test-Path $ZipPath) {
 }
 Compress-Archive -Path (Join-Path $OutDir "*") -DestinationPath $ZipPath -CompressionLevel Optimal
 
-Write-Host "打包完成:"
-Write-Host "目录: $OutDir"
-Write-Host "压缩包: $ZipPath"
+Write-Host "Package complete:"
+Write-Host "Directory: $OutDir"
+Write-Host "Archive: $ZipPath"
