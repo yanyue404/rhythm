@@ -1,8 +1,13 @@
 use anyhow::Result;
 #[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
 use std::process::{Child, Command, Stdio};
 #[cfg(windows)]
 use std::time::Instant;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 // 休息遮罩管理器：
 // - show_rest_overlay: 弹出全屏遮罩
@@ -104,6 +109,7 @@ impl OverlayManager {
                     "-Command",
                     &script,
                 ])
+                .creation_flags(CREATE_NO_WINDOW)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())

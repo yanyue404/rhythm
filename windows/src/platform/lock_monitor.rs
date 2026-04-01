@@ -1,8 +1,11 @@
 #[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
 use std::process::Command;
 
-// 锁屏监测器。
-// 当前版本是轻量轮询实现（通过 LogonUI 进程判断）。
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 pub struct LockMonitor;
 
 impl LockMonitor {
@@ -13,8 +16,6 @@ impl LockMonitor {
     pub fn is_session_locked(&self) -> bool {
         #[cfg(windows)]
         {
-            // 用 LogonUI 进程作为锁屏状态的轻量判断依据：
-            // 常见 Windows 10/11 桌面环境中，锁屏界面出现时 LogonUI 会存在。
             let output = Command::new("powershell")
                 .args([
                     "-NoProfile",
@@ -22,6 +23,7 @@ impl LockMonitor {
                     "-Command",
                     "(Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne $null",
                 ])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
 
             if let Ok(out) = output {
