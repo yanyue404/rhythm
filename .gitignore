@@ -10,3 +10,8 @@ dist/
 DerivedData/
 xcuserdata/
 *.xcworkspace
+
+# Rust
+target/
+**/target/
+Cargo.lock
