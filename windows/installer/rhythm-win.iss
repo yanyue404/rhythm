@@ -1,6 +1,8 @@
 #define AppName "Rhythm"
 #define AppExeName "rhythm-win.exe"
-#define AppVersion "0.1.0"
+#ifndef AppVersion
+  #define AppVersion "0.1.0"
+#endif
 #define Publisher "yanyue404"
 
 [Setup]
